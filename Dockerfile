@@ -20,9 +20,10 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/* && mkdir /src && chown user:user /src
 
 ADD ${SRC_URL} /src/libreoffice-${LO_VERSION}.tar.xz
-RUN mkdir -p ${MAIN_FUNCTION_DIR} && chown user:user ${MAIN_FUNCTION_DIR}
+RUN mkdir -p ${MAIN_FUNCTION_DIR} && chown user:user -R ${MAIN_FUNCTION_DIR} /src
 USER user
 WORKDIR /src
+# Compile, install to /src/libreoffice, then find all lib using ldd, then reverse find what packages (deb) provide those libs, then put in pkg.lst file for next phase to install
 RUN cd /src && mkdir -p libreoffice && tar xf libreoffice-${LO_VERSION}.tar.xz && cd /src/libreoffice-${LO_VERSION} && \
     ./configure \
     --disable-avahi \
@@ -75,8 +76,10 @@ RUN cd /src && mkdir -p libreoffice && tar xf libreoffice-${LO_VERSION}.tar.xz &
     --without-system-dicts \
     --prefix=/src/libreoffice && make  && make install && \
     find /src/libreoffice -type f -executable -exec ldd '{}' \; | sed 's/(.*)//g' | sort | uniq | grep -v '/src/libreoffice'| sed -e 's/^[[:space:]]*//' | cut -d' ' -f1 | grep -v 'statically' | grep -v 'linux-vdso.so.1' | xargs dpkg -S | cut -d":" -f1 | sort | uniq | tr '\n' ' ' > /src/libreoffice/pkg.lst
+
 # Copy handler function
 COPY app/* ${MAIN_FUNCTION_DIR}
+# Install AWS Lambda runtime
 RUN python${PYTHON_RUNTIME_VERSION} -m pip install awslambdaric --target ${MAIN_FUNCTION_DIR}
 
 FROM python:${PYTHON_RUNTIME_VERSION}-slim
