@@ -15,9 +15,22 @@ ARG SRC_URL
 
 RUN useradd -u 1000 -U -ms /bin/bash user
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -y && \
-    apt-get install -y git build-essential zip ccache junit4 libkrb5-dev nasm graphviz python3 python3-dev qtbase5-dev libkf5coreaddons-dev libkf5i18n-dev libkf5config-dev libkf5windowsystem-dev libkf5kio-dev autoconf libcups2-dev libfontconfig1-dev gperf default-jdk doxygen libxslt1-dev xsltproc libxml2-utils libxrandr-dev libx11-dev bison flex libgtk-3-dev libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev ant ant-optional libnss3-dev libavahi-client-dev libxt-dev && \
-    rm -rf /var/lib/apt/lists/* && mkdir /src && chown user:user /src
+# Fonts
+RUN echo "deb http://deb.debian.org/debian bullseye main contrib non-free" | tee -a /etc/apt/sources.list.d/contrib.list && \
+    echo "deb http://deb.debian.org/debian-security/ bullseye-security main contrib non-free" | tee -a /etc/apt/sources.list.d/contrib.list && \
+    echo "deb http://deb.debian.org/debian bullseye-updates main contrib non-free" | tee -a /etc/apt/sources.list.d/contrib.list && \
+    echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections && \
+    apt-get update -y && \
+    apt-get install -y unzip fontconfig ttf-mscorefonts-installer git build-essential zip ccache junit4 libkrb5-dev nasm graphviz python3 python3-dev qtbase5-dev libkf5coreaddons-dev libkf5i18n-dev libkf5config-dev libkf5windowsystem-dev libkf5kio-dev autoconf libcups2-dev libfontconfig1-dev gperf default-jdk doxygen libxslt1-dev xsltproc libxml2-utils libxrandr-dev libx11-dev bison flex libgtk-3-dev libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev ant ant-optional libnss3-dev libavahi-client-dev libxt-dev && \
+    rm -rf /var/lib/apt/lists/* && mkdir /src && chown user:user /src && \
+    wget -O 'PowerPointViewer.exe' 'https://nchc.dl.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe' && \
+    cabextract -L -F ppviewer.cab -d . PowerPointViewer.exe && \
+    mkdir /usr/share/fonts/vista && \
+    cabextract -L -F '*.TT[FC]' -d /usr/share/fonts/vista ppviewer.cab && \
+    fc-cache -fv /usr/share/fonts/vista && \
+    rm PowerPointViewer.exe ppviewer.cab && fc-cache -f 
+
+COPY fonts/* /usr/share/fonts/truetype/msttcorefonts/
 
 ADD ${SRC_URL} /src/libreoffice-${LO_VERSION}.tar.xz
 RUN mkdir -p ${MAIN_FUNCTION_DIR} && chown user:user -R ${MAIN_FUNCTION_DIR} /src
@@ -89,7 +102,8 @@ WORKDIR ${MAIN_FUNCTION_DIR}
 RUN useradd -u 1000 -U -ms /bin/bash user && mkdir -p /src/libreoffice
 COPY --from=build-image ${MAIN_FUNCTION_DIR} ${MAIN_FUNCTION_DIR}
 COPY --from=build-image /src/libreoffice /src/libreoffice
-RUN apt-get update -y && apt-get install -y $(cat /src/libreoffice/pkg.lst) && rm -rf /var/lib/apt/lists/*
+COPY --from=build-image /usr/share/fonts /usr/share/fonts
+RUN apt-get update -y && apt-get install -y $(cat /src/libreoffice/pkg.lst) unzip fontconfig && rm -rf /var/lib/apt/lists/*
 ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie /usr/bin/aws-lambda-rie
 COPY entry.sh /
 RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
